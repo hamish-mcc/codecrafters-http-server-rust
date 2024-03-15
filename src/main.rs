@@ -1,6 +1,6 @@
 use std::{collections::HashMap, io::{Read, Result, Write}, net::{TcpListener, TcpStream}};
 
-use http_server_starter_rust::{request::HttpRequest, response::{HttpResponse, HttpStatus}};
+use http_server_starter_rust::{pool::ThreadPool, request::HttpRequest, response::{HttpResponse, HttpStatus}};
 use itertools::Itertools;
 
 fn handle_connection(mut stream: TcpStream)-> Result<()>  {
@@ -24,7 +24,7 @@ fn handle_connection(mut stream: TcpStream)-> Result<()>  {
             Some("user-agent") => {
                 let content = match request.headers.get("User-Agent") {
                     Some(value) => value,
-                    None => ""
+                    None => panic!()
                 };
 
                 let mut headers = HashMap::new();
@@ -34,7 +34,6 @@ fn handle_connection(mut stream: TcpStream)-> Result<()>  {
 
                 HttpResponse::new(HttpStatus::Ok, headers, content)
             },
-            None => panic!(),
             _ =>  HttpResponse::new(HttpStatus::NotFound, HashMap::new(), ""),
         };
 
@@ -47,17 +46,16 @@ fn handle_connection(mut stream: TcpStream)-> Result<()>  {
     Ok(())
 }
 
+
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
-    
+    let pool = ThreadPool::new(4);
+
     for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                handle_connection(stream).expect("error handling connection");
-            }
-            Err(e) => {
-                println!("error: {}", e);
-            }
-        }
+        let stream = stream.unwrap();
+
+        pool.execute(|| {
+            handle_connection(stream).unwrap();
+        });
     }
 }
