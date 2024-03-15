@@ -113,7 +113,7 @@ fn handle_connection(mut stream: TcpStream)-> Result<()>  {
                 };
                 let mut headers = HashMap::new();
                 
-                headers.insert(String::from("Content-Type"), String::from("text-plain"));
+                headers.insert(String::from("Content-Type"), String::from("text/plain"));
                 headers.insert(String::from("Content-Length"), String::from(content.len().to_string()));
 
                 HttpResponse::new(HttpStatusCode::Ok, headers, content)
@@ -123,8 +123,6 @@ fn handle_connection(mut stream: TcpStream)-> Result<()>  {
         };
 
         let response_string = response.to_string();
-
-        println!("{}", response_string);
 
         stream.write(response_string.as_bytes())?;
         stream.flush()?;
