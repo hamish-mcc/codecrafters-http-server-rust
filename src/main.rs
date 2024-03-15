@@ -1,4 +1,4 @@
-use std::{io::{Read, Write}, net::{TcpListener, TcpStream}};
+use std::{collections::HashMap, io::{BufRead, BufReader, Read, Result, Write}, net::{TcpListener, TcpStream}, str};
 
 #[derive(Debug)]
 enum HttpMethod {
@@ -30,36 +30,107 @@ struct HttpRequest {
 }
 
 impl HttpRequest {
-    fn from_str(request: &str) -> Option<Self> {
-        let mut lines = request.lines();
-        let start_line = lines.next()?;
-        let parts: Vec<&str> = start_line.split_whitespace().collect();
+    fn from_buffer(buffer: &[u8]) -> Option<Self> {
+        let mut buf_reader = BufReader::new(buffer);
+        let mut request_line = String::new();
+
+        buf_reader.read_line(&mut request_line).expect("reading request line");
+
+        let parts: Vec<&str> = request_line.split_whitespace().collect();
+
         if parts.len() == 3 {
-            let method = HttpMethod::from_str(parts[0]).unwrap();
+            let method = HttpMethod::from_str(parts[0])?;
             let path = parts[1].to_string();
             let version = parts[2].to_string();
-            Some(Self { method, path, version})
+
+            Some(Self { method, path, version })
         } else {
             None
         }
     }
 }
 
-fn handle_connection(mut stream: TcpStream) {
+#[derive(Debug)]
+
+enum HttpStatusCode {
+    Ok = 200,
+    NotFound = 404
+}
+
+impl HttpStatusCode {
+    fn status_text(&self) -> &'static str {
+        match self {
+            HttpStatusCode::Ok => "OK",
+            HttpStatusCode::NotFound => "Not Found",
+        }
+    }
+}
+
+#[derive(Debug)]
+struct HttpResponse {
+    http_version: String,
+    status_code: HttpStatusCode,    
+    headers: HashMap<String, String>,
+    body: String
+}
+
+impl HttpResponse {
+    fn new(status_code:HttpStatusCode, headers: HashMap<String, String>, body: &str)-> Self {
+        let http_version = "HTTP/1.1".to_string();
+        let body = body.to_string();
+
+        Self {http_version, status_code, headers, body}
+    }
+
+    fn to_string(self) -> String {
+        let status_text = self.status_code.status_text();
+        let mut response = format!("{} {} {}\r\n", self.http_version, self.status_code as u16, status_text);
+
+        for (key, value) in &self.headers {
+            response.push_str(&format!("{}: {}\r\n", key, value));
+        }
+
+        response.push_str("\r\n");
+        response.push_str(&self.body);
+
+        response
+    }
+}
+
+fn handle_connection(mut stream: TcpStream)-> Result<()>  {
     let mut buffer = [0; 1024];
     stream.read(&mut buffer).unwrap();
 
-    let received = String::from_utf8_lossy(&buffer);
+    if let Some(request) = HttpRequest::from_buffer(&buffer) {
+        let mut path_segments = request.path.split("/");
+   
+        let response = match path_segments.nth(1) {
+            Some("") => HttpResponse::new(HttpStatusCode::Ok, HashMap::new(), ""),
+            Some("echo") => {
+                let content = match path_segments.next() {
+                    Some(content) => content,
+                    None => "",
+                };
+                let mut headers = HashMap::new();
+                
+                headers.insert(String::from("Content-Type"), String::from("text-plain"));
+                headers.insert(String::from("Content-Length"), String::from(content.len().to_string()));
 
-    let request = HttpRequest::from_str(&received).unwrap();
+                HttpResponse::new(HttpStatusCode::Ok, headers, content)
+            },
+            None => panic!(),
+            _ =>  HttpResponse::new(HttpStatusCode::NotFound, HashMap::new(), ""),
+        };
 
-    let response = match request.path.as_str() {
-        "/" => "HTTP/1.1 200 OK\r\n\r\n",
-        _ => "HTTP/1.1 404 Not Found\r\n\r\n"
-    };
+        let response_string = response.to_string();
+
+        println!("{}", response_string);
+
+        stream.write(response_string.as_bytes())?;
+        stream.flush()?;
+    }
     
-    stream.write(response.as_bytes()).unwrap();
-    stream.flush().unwrap();
+    Ok(())
 }
 
 fn main() {
@@ -68,7 +139,7 @@ fn main() {
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                handle_connection(stream);
+                handle_connection(stream).expect("error handling connection");
             }
             Err(e) => {
                 println!("error: {}", e);
