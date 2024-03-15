@@ -1,5 +1,7 @@
 use std::{collections::HashMap, io::{BufRead, BufReader, Read, Result, Write}, net::{TcpListener, TcpStream}, str};
 
+use itertools::Itertools;
+
 #[derive(Debug)]
 enum HttpMethod {
     GET,
@@ -107,16 +109,14 @@ fn handle_connection(mut stream: TcpStream)-> Result<()>  {
         let response = match path_segments.nth(1) {
             Some("") => HttpResponse::new(HttpStatusCode::Ok, HashMap::new(), ""),
             Some("echo") => {
-                let content = match path_segments.next() {
-                    Some(content) => content,
-                    None => "",
-                };
+                // TODO: Expects the rest of the path as content
+                let content = path_segments.join("/");
                 let mut headers = HashMap::new();
                 
                 headers.insert(String::from("Content-Type"), String::from("text/plain"));
                 headers.insert(String::from("Content-Length"), String::from(content.len().to_string()));
 
-                HttpResponse::new(HttpStatusCode::Ok, headers, content)
+                HttpResponse::new(HttpStatusCode::Ok, headers, &content)
             },
             None => panic!(),
             _ =>  HttpResponse::new(HttpStatusCode::NotFound, HashMap::new(), ""),
