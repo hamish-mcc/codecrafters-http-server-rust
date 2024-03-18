@@ -46,14 +46,17 @@ fn handle_connection(mut stream: TcpStream)-> Result<()>  {
 
                 let file_path = Path::new(&dir_name).join(&file_name);
 
-                let content = fs::read_to_string(&file_path)?;
+                if file_path.exists() {
+                    let content = fs::read_to_string(&file_path).unwrap();
 
-                let mut headers = HashMap::new();
-                headers.insert(String::from("Content-Type"), String::from("application/octet-stream"));
-                headers.insert(String::from("Content-Length"), String::from(content.len().to_string()));
+                    let mut headers = HashMap::new();
+                    headers.insert(String::from("Content-Type"), String::from("application/octet-stream"));
+                    headers.insert(String::from("Content-Length"), String::from(content.len().to_string()));
 
-                HttpResponse::new(HttpStatus::Ok, headers, &content)
-
+                    HttpResponse::new(HttpStatus::Ok, headers, &content)
+                } else {
+                    HttpResponse::new(HttpStatus::NotFound, HashMap::new(), "")
+                }
             },
             _ =>  HttpResponse::new(HttpStatus::NotFound, HashMap::new(), ""),
         };
