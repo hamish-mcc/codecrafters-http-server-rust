@@ -1,7 +1,15 @@
-use std::{collections::HashMap, io::{Read, Result, Write}, net::{TcpListener, TcpStream}};
+use std::{collections::HashMap, fs, io::{Read, Result, Write}, net::{TcpListener, TcpStream}, path::Path};
 
 use http_server_starter_rust::{pool::ThreadPool, request::HttpRequest, response::{HttpResponse, HttpStatus}};
 use itertools::Itertools;
+
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+struct Args {
+    #[arg(short, long)]
+    directory: String
+}
 
 fn handle_connection(mut stream: TcpStream)-> Result<()>  {
     let mut buffer = [0; 1024];
@@ -14,25 +22,38 @@ fn handle_connection(mut stream: TcpStream)-> Result<()>  {
             Some("") => HttpResponse::new(HttpStatus::Ok, HashMap::new(), ""),
             Some("echo") => {
                 let content = path_segments.join("/");
+
                 let mut headers = HashMap::new();
-                
                 headers.insert(String::from("Content-Type"), String::from("text/plain"));
                 headers.insert(String::from("Content-Length"), String::from(content.len().to_string()));
 
                 HttpResponse::new(HttpStatus::Ok, headers, &content)
             },
             Some("user-agent") => {
-                let content = match request.headers.get("User-Agent") {
-                    Some(value) => value,
-                    None => panic!()
-                };
+                let content = request.headers.get("User-Agent").unwrap();
 
                 let mut headers = HashMap::new();
-                
                 headers.insert(String::from("Content-Type"), String::from("text/plain"));
                 headers.insert(String::from("Content-Length"), String::from(content.len().to_string()));
 
                 HttpResponse::new(HttpStatus::Ok, headers, content)
+            },
+            Some("files") => {
+                let args = Args::parse();
+                let dir_name = args.directory;
+
+                let file_name = path_segments.next().unwrap();
+
+                let file_path = Path::new(&dir_name).join(&file_name);
+
+                let content = fs::read_to_string(&file_path)?;
+
+                let mut headers = HashMap::new();
+                headers.insert(String::from("Content-Type"), String::from("application/octet-stream"));
+                headers.insert(String::from("Content-Length"), String::from(content.len().to_string()));
+
+                HttpResponse::new(HttpStatus::Ok, headers, &content)
+
             },
             _ =>  HttpResponse::new(HttpStatus::NotFound, HashMap::new(), ""),
         };
