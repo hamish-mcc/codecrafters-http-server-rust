@@ -29,9 +29,12 @@ pub struct HttpResponse {
 }
 
 impl HttpResponse {
-    pub fn new(status_code:HttpStatus, headers: HashMap<String, String>, body: &str)-> Self {
+    pub fn new(status_code:HttpStatus, mut headers: HashMap<String, String>, body: &str)-> Self {
         let http_version = "HTTP/1.1".to_string();
+        
         let body = body.to_string();
+
+        headers.insert(String::from("Content-Length"), body.len().to_string());
 
         Self {http_version, status_code, headers, body}
     }

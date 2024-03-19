@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs, io::{Read, Result, Write}, net::{TcpListener, TcpStream}, path::{Path, PathBuf}};
+use std::{collections::HashMap, fs, io::{Read, Result, Write}, net::{TcpListener, TcpStream}, path::Path};
 use http_server_starter_rust::{pool::ThreadPool, request::{HttpMethod, HttpRequest}, response::{HttpResponse, HttpStatus}};
 use itertools::Itertools;
 
@@ -10,7 +10,7 @@ struct Args {
     directory: String
 }
 
-fn handle_connection(mut stream: TcpStream, directory_path: PathBuf)-> Result<()>  {
+fn handle_connection(mut stream: TcpStream)-> Result<()>  {
     let mut buffer = [0; 1024];
     stream.read(&mut buffer).unwrap();
 
@@ -24,7 +24,6 @@ fn handle_connection(mut stream: TcpStream, directory_path: PathBuf)-> Result<()
 
                 let mut headers = HashMap::new();
                 headers.insert(String::from("Content-Type"), String::from("text/plain"));
-                headers.insert(String::from("Content-Length"), String::from(content.len().to_string()));
 
                 HttpResponse::new(HttpStatus::Ok, headers, &content)
             },
@@ -33,11 +32,16 @@ fn handle_connection(mut stream: TcpStream, directory_path: PathBuf)-> Result<()
 
                 let mut headers = HashMap::new();
                 headers.insert(String::from("Content-Type"), String::from("text/plain"));
-                headers.insert(String::from("Content-Length"), String::from(content.len().to_string()));
 
                 HttpResponse::new(HttpStatus::Ok, headers, content)
             },
             Some("files") => {
+                let args = Args::parse();
+                let directory_name = args.directory;
+                let directory_path = Path::new(&directory_name).to_path_buf();
+
+                assert!(directory_path.exists());
+
                 let file_name = path_segments.next().unwrap();
                 let file_path = directory_path.join(&file_name);
 
@@ -48,7 +52,6 @@ fn handle_connection(mut stream: TcpStream, directory_path: PathBuf)-> Result<()
                     
                             let mut headers = HashMap::new();
                             headers.insert(String::from("Content-Type"), String::from("application/octet-stream"));
-                            headers.insert(String::from("Content-Length"), content.len().to_string());
                         
                             HttpResponse::new(HttpStatus::Ok, headers, &content)
                         } else {
@@ -82,21 +85,14 @@ fn handle_connection(mut stream: TcpStream, directory_path: PathBuf)-> Result<()
 
 
 fn main() {
-    let args = Args::parse();
-    let directory_name = args.directory;
-    let directory_path = Path::new(&directory_name).to_path_buf();
-
-    assert!(directory_path.exists());
-
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
     let pool = ThreadPool::new(4);
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
-        let directory_path_clone = directory_path.clone();
 
         pool.execute(|| {
-            handle_connection(stream, directory_path_clone).unwrap();
+            handle_connection(stream).unwrap();
         });
     }
 }
