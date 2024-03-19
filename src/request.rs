@@ -27,7 +27,8 @@ pub struct HttpRequest {
     pub method: HttpMethod,
     pub path: String,
     pub version: String,
-    pub headers: HashMap<String, String>
+    pub headers: HashMap<String, String>,
+    pub body: String,
 }
 
 impl HttpRequest {
@@ -64,6 +65,8 @@ impl HttpRequest {
             headers.insert(parts[0].to_string(), parts[1].to_string());
         }
 
-        Some(Self { method, path, version, headers })
+        let body: String = lines.filter_map(Result::ok) .collect::<Vec<String>>() .join("\n"); 
+
+        Some(Self { method, path, version, headers, body })
     }
 }

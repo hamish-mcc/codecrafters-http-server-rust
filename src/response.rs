@@ -4,14 +4,18 @@ use std::collections::HashMap;
 
 pub enum HttpStatus {
     Ok = 200,
-    NotFound = 404
+    Created = 201,
+    NotFound = 404,
+    Error = 500,
 }
 
 impl HttpStatus {
     fn status_text(&self) -> &'static str {
         match self {
             HttpStatus::Ok => "OK",
+            HttpStatus::Created => "Created",
             HttpStatus::NotFound => "Not Found",
+            HttpStatus::Error => "Internal Server Error"
         }
     }
 }
